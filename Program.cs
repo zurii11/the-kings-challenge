@@ -21,25 +21,63 @@ public class Program
         string json_response = await response.Content.ReadAsStringAsync();
 
         List<KingRecord> kings_list = JsonSerializer.Deserialize<List<KingRecord>>(json_response);
-        amount_of_monarchs = kings_list.Count;
+        amount_of_monarchs = kings_list.Count();
 
-        int longest_ruled_years = 1;
-        foreach (KingRecord king in kings_list)
-        {
-            Console.WriteLine($"Years: {king.Years}");
-            List<int> years_ruled = new List<int>();
-            king.Years.Split("-").ToList().ForEach(y => years_ruled.Add(int.Parse(y)));
+        var longest_ruler_king = kings_list
+                                    .Select(k => new
+                                    {
+                                        King = k,
+                                        Years = ParseYears(k.Years)
+                                    })
+                                    .OrderByDescending(k => k.Years)
+                                    .FirstOrDefault();
 
-            // Can be sure that years in the list are in ascending order
-            if (years_ruled.Count == 2 && (years_ruled[1] - years_ruled[0]) > longest_ruled_years)
-            {
-                longest_ruled_years = years_ruled[1] - years_ruled[0];
-                longer_ruler_name = king.Name;
-            }
-        }
+        var longest_ruler_house = kings_list
+                                    .Select(k => new
+                                    {
+                                        King = k,
+                                        Years = ParseYears(k.Years)
+                                    })
+                                    .AggregateBy(
+                                        keySelector: record => record.King.House,
+                                        seed: 0,
+                                        func: (accumulator, record) => accumulator + record.Years
+                                    )
+                                    .FirstOrDefault();
 
-        Console.WriteLine($"Amount of monarchs: {amount_of_monarchs}");
-        Console.WriteLine($"Longest reigning monarch: {longer_ruler_name}");
+        var most_common_name = kings_list
+                                .Select(k => new
+                                {
+                                    Name = ParseName(k.Name)
+                                })
+                                .CountBy(k => k.Name)
+                                .OrderByDescending(kp => kp.Value)
+                                .FirstOrDefault();
+        
+
+        Console.WriteLine($"Amount of monarchs is {amount_of_monarchs}.");
+        Console.WriteLine($"Longest reigning monarch {longest_ruler_king.King.Name} ruled for {longest_ruler_king.Years} years.");
+        Console.WriteLine($"Longest reigning house {longest_ruler_house.Key} ruled for {longest_ruler_house.Value} years.");
+        Console.WriteLine($"Most common name is {most_common_name.Key} with {most_common_name.Value} occurences.");
+    }
+
+    private static string ParseName(string name)
+    {
+        return name.Split(" ")[0];
+    }
+
+    private static int ParseYears(string years)
+    {
+        if (string.IsNullOrWhiteSpace(years) || string.IsNullOrEmpty(years))
+            return 0;
+
+
+        List<string> years_list = years.Split("-").Where(s => s != "").ToList();
+
+        if (years_list.Count() == 1)
+            return 1;
+
+        return int.Parse(years_list[1]) - int.Parse(years_list[0]);
     }
 
     private class KingRecord
